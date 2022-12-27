@@ -34,10 +34,16 @@ func_t u;
 void print_matrix(const matrix& mat, std::ostream& out = std::cout)
 {
     for (int i = 0; i < mat.size2(); i++)
+        out << ";x" << i;
+    out << '\n';
+
+
+    for (int i = 0; i < mat.size2(); i++)
     {
+        out << "y" << i << ";";
         for (int j = 0; j < mat.size1(); j++)
         {
-            out << std::right << mat(j, i) << ';';
+            out << std::right << mat(i, j) << ';';
         }
         out << '\n';
     }
@@ -60,7 +66,7 @@ void init_borders(matrix& v)
     }
 }
 
-matrix solve(const input_t& input)
+matrix solve(const input_t& input, uint64_t& step_num, double& fin_eps)
 {
     uint32_t n = input.n;
     uint32_t m = input.m;
@@ -88,10 +94,13 @@ matrix solve(const input_t& input)
     init_borders(v);
 
     double A = -2.0 * (1 / (h * h) + 1 / (k * k));
+    double cur_eps = 0;
 
-    while (count_step++ < max_step)
+    while (count_step < max_step)
     {
-        double cur_eps = 0;
+        count_step++;
+
+        cur_eps = 0;
         for (int i = 1; i < m; i++)
         {
             for (int j = 1; j < n; j++)
@@ -106,12 +115,15 @@ matrix solve(const input_t& input)
                 v(j, i) = tmp_v;
             }
         }
-
+           
         if (cur_eps < eps)
             break;
+
     }
 
-    std::cout << "Step count is: " << count_step << '\n';
+    fin_eps = cur_eps;
+    step_num = count_step;
+    //std::cout << "Step count is: " << count_step << '\n';
 
 
     return v;
@@ -165,11 +177,32 @@ matrix get_r(const matrix& v)
     return r;
 }
 
-double abs(const matrix& mat)
+matrix get_exact_sol(const input_t& input)
+{
+    matrix res(input.n + 1, input.m + 1);
+
+    for (int i = 0; i < res.size2(); i++)
+    {
+        for (int j = 0; j < res.size1(); j++)
+        {
+            res(j, i) = u(j, i, true);
+        }
+    }
+
+    return res;
+}
+
+double abs(const matrix& mat, bool f = false)
 {
     double res = 0;
     for (int i = 0; i < mat.data().size(); i++)
-        res = std::max(std::abs(mat.data()[i]), res);
+        if (!f)
+            res = std::max(std::abs(mat.data()[i]), res);
+        else
+            res += mat.data()[i] * mat.data()[i];
+
+    if (f)
+        res = sqrt(res);
 
     return res;
 }
@@ -199,28 +232,46 @@ int main()
     u.n = input.n;
     u.m = input.m;
 
-    matrix ans = solve(input);
 
+    uint64_t step_num;
+    double eps;
+    matrix ans = solve(input, step_num, eps);
+
+	std::cout << "Total step: " << step_num << "\n";
     std::cout << "DONE!, starting output\n";
 
     std::ofstream out("out.csv");
 
-    out << "v:\n";
-    print_matrix(ans, out);
+    
 
     //double discrepancy = get_z(expected, ans);
 
     matrix r = get_r(ans);
     matrix z = get_z(ans);
+    matrix exp = get_exact_sol(input);
 
-    out << "|r|; " << std::scientific << abs(r) << '\n';
-    out << "|z|; " << std::scientific << abs(z) << "\n\n";
+
+    out << "СПРАВКА:\n";
+    out << "Евклидова норма невязки: ;" << std::scientific << abs(r, true) << '\n';
+    out << "Норма бесконечность погрешности: ;" << std::scientific << abs(z) << "\n";
+    out << "Всего шагов:;" << step_num << "\n";
+    out << "Точность на выходе:;" << eps << "\n\n";
+
+
+    std::cout << "|r|; " << std::scientific << abs(r, true) << '\n';
+    std::cout << "|z|; " << std::scientific << abs(z) << "\n\n";
 
     out << std::defaultfloat;
 
-    out << "r:\n";
+    out << "v (Численное решение):\n";
+    print_matrix(ans, out);
+
+    out << "u (Точное решение):\n";
+    print_matrix(exp, out);
+
+    out << "Невязка:\n";
     print_matrix(r, out);
-    out << "z:\n";
+    out << "Погрешность:\n";
     print_matrix(z, out);
 
     out.close();
